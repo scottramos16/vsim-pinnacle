@@ -1,0 +1,24 @@
+﻿import {Game} from './game.js';
+import {defaultProgram,validateProgram,DIFFICULTIES} from './ai-profiles.js';
+import {restoreWorld} from './practice-tools.js';
+export function seededRandom(seed){let state=seed>>>0;return ()=>{state+=0x6D2B79F5;let n=state;n=Math.imul(n^n>>>15,n|1);n^=n+Math.imul(n^n>>>7,n|61);return ((n^n>>>14)>>>0)/4294967296;};}
+export function validateBatch(config){if(config.intakeEnabled!==undefined&&typeof config.intakeEnabled!=='boolean')return 'Choose whether R1 has an intake.';const error=validateProgram(config.program);if(error)return error;if(!Number.isInteger(config.trials)||config.trials<1||config.trials>500)return 'Choose 1-500 matches.';if(!Number.isInteger(config.seed)||config.seed<0||config.seed>4294967295)return 'Seed must be an integer from 0 to 4294967295.';if(!['win','score','endgame','win-endgame'].includes(config.objective))return 'Choose a success condition.';if(!Number.isFinite(config.targetScore)||config.targetScore<0||config.targetScore>2000)return 'Score target must be 0-2000.';if(!DIFFICULTIES[config.ownDifficulty])return 'Choose your robot skill.';for(const id of ['R2','B1','B2'])if(!config.bots?.[id]||!['random','defender','center','field'].includes(config.bots[id].role)||!DIFFICULTIES[config.bots[id].difficulty])return `Choose a valid strategy and skill for ${id}.`;return null;}
+export function defaultBatch(){return {intakeEnabled:true,program:defaultProgram(),ownDifficulty:'standard',bots:{R2:{role:'field',difficulty:'standard'},B1:{role:'random',difficulty:'standard'},B2:{role:'random',difficulty:'standard'}},trials:50,seed:12345,objective:'win',targetScore:100};}
+export function simulateStrategy(config,index=0){
+ const error=validateBatch(config);if(error)throw Error(error);const seed=(config.seed+Math.imul(index,2654435761))>>>0,g=new Game({random:seededRandom(seed)});
+ g.matchConfig={automatedPlayer:true,reroll:false,speed:1,bots:{...structuredClone(config.bots),R1:{role:'center',difficulty:config.ownDifficulty,program:config.program}}};g.reset('headtohead');if(config.setup)restoreWorld(g,config.setup,{setup:true});g.player.strategyIntake=config.intakeEnabled!==false;g.start();
+ const scoreTimeline=[{t:0,red:g.score().red,blue:g.score().blue}];let eventCount=0;
+ while(!g.finished){g.tick(.05);if(g.history.events.length!==eventCount||g.finished){eventCount=g.history.events.length;const score=g.score(),last=scoreTimeline.at(-1);if(score.red!==last.red||score.blue!==last.blue||g.finished)scoreTimeline.push({t:g.elapsed,red:score.red,blue:score.blue});}}
+
+ const score=g.score(),rp=g.summary.rankingPoints.alliances.red,win=score.red>score.blue,tie=score.red===score.blue;
+ const success=config.objective==='win'?win:config.objective==='score'?score.red>=config.targetScore:config.objective==='endgame'?rp.endgame===1:win&&rp.endgame===1;
+ return {index,seed,red:score.red,blue:score.blue,win,tie,success,endgame:rp.endgame,rankingPoints:rp.total,parked:score.parking.red/21,timeline:structuredClone(g.summary.events),scoreTimeline,goals:g.goals.map(({id,x,z,color})=>({id,x,z,color})),paths:g.summary.robots.map(r=>({id:r.id,color:r.color,path:r.path})),events:g.history.events.filter(e=>e.robot==='R1').length};
+}
+export function wilson(successes,n){if(!n)return [0,1];const z=1.96,p=successes/n,den=1+z*z/n,mid=(p+z*z/(2*n))/den,half=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n))/den;return [Math.max(0,mid-half),Math.min(1,mid+half)];}
+export function summarizeTrials(trials){const n=trials.length;if(!n)return {completed:0};const wins=trials.filter(r=>r.win).length,ties=trials.filter(r=>r.tie).length,successes=trials.filter(r=>r.success).length;return {completed:n,wins,ties,losses:n-wins-ties,successes,winRate:wins/n,successRate:successes/n,interval:wilson(successes,n),averageRed:trials.reduce((s,r)=>s+r.red,0)/n,averageBlue:trials.reduce((s,r)=>s+r.blue,0)/n,minRed:Math.min(...trials.map(r=>r.red)),maxRed:Math.max(...trials.map(r=>r.red)),endgameRate:trials.reduce((s,r)=>s+r.endgame,0)/n,averageRanking:trials.reduce((s,r)=>s+r.rankingPoints,0)/n};}
+
+export function recommendationCandidates(config){
+ const make=(name,phases)=>({name,program:{...structuredClone(config.program),phases:phases.map(([until,action])=>({until,action}))}});
+ return [{name:'Your current plan',program:structuredClone(config.program)},make('Center then alliance',[[45,'center'],[105,'alliance'],[120,'park']]),make('Alliance focus',[[105,'alliance'],[120,'park']]),make('Balanced scoring',[[105,'balanced'],[120,'park']]),make('Defense then scoring',[[35,'defender'],[105,'balanced'],[120,'park']])];
+}
+export function rankRecommendations(rows){return [...rows].sort((a,b)=>b.summary.successRate-a.summary.successRate||(b.summary.averageRed-b.summary.averageBlue)-(a.summary.averageRed-a.summary.averageBlue)||b.summary.averageRanking-a.summary.averageRanking);}

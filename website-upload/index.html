@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Pinnacle Practice • 3D robotics simulator</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23c6f36b' d='M16 2 30 28H2z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <div id="viewport" aria-label="3D Pinnacle field"></div>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Pinnacle Practice home"><span class="brand-icon">△</span><span>PINNACLE<span class="brand-sub">PRACTICE / 3D</span></span></a>
+      <div class="top-center"><span class="live-dot"></span> <span id="mode-label">FREE PRACTICE</span><span class="divider">/</span><span>YOUR FIELD LAYOUT</span></div>
+      <button id="help-button" class="quiet">Settings <span aria-hidden="true">⚙</span></button>
+    </header>
+    <section class="scoreboard" aria-label="Run score">
+      <div><span class="eyebrow" id="score-label">TOTAL SCORE</span><strong id="score">0</strong><span class="score-unit">PTS</span></div>
+      <div id="alliance-score" hidden><span class="eyebrow">BLUE ALLIANCE</span><strong id="blue-score">0</strong><span class="score-unit">PTS</span></div>
+      <div class="timer-box"><span class="eyebrow" id="timer-label">NO TIME LIMIT</span><strong id="timer">∞</strong><span id="run-state">Ready to drive</span></div>
+    </section>
+    <aside id="ai-panel" class="ai-panel" hidden><span class="eyebrow">AI DRIVER ROSTER</span><div id="ai-roster"></div><p class="tiny">Slow drivers · individual tendencies<br>Each role changes once around mid-match.</p></aside>
+    <aside class="field-panel">
+      <div class="panel-heading"><span class="eyebrow">FIELD OVERVIEW</span><span class="tiny">12 × 12 FT</span></div>
+      <canvas id="minimap" width="240" height="240" aria-label="Top-down field map"></canvas>
+      <div class="goal-legend"><span><i class="red"></i>Red</span><span><i class="blue"></i>Blue</span><span><i class="neutral"></i>Neutral</span></div>
+      <div class="panel-divider"></div>
+      <div class="panel-heading"><span class="eyebrow">GOAL SCORES</span><span class="tiny">LIVE</span></div>
+      <div id="goal-scores"></div>
+      <div class="panel-divider"></div>
+      <div class="panel-heading"><span class="eyebrow">ROLLERS</span><span class="tiny">F · REAR CONTACT</span></div>
+      <div id="roller-status" class="roller-status"></div>
+    </aside>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div class="aim-marker" id="aim-marker"><span></span></div>
+    <div class="interaction" id="interaction">Click the field to drive</div>
+    <section class="robot-panel" aria-label="Robot status">
+      <div class="lift-display"><span class="eyebrow">CASCADE LIFT</span><strong><span id="lift-height">0</span><small> IN</small></strong><div class="lift-track"><span id="lift-fill"></span></div><span class="tiny">A RAISE · D LOWER</span></div>
+      <div class="held-display"><span class="eyebrow">CLAW</span><strong id="held-label">Red / yellow pin</strong><span id="held-detail">Red facing up · E to release</span><span id="intake-status" class="intake-status">Hold I · rear intake</span></div>
+    </section>
+    <footer class="bottom-bar">
+      <div class="drive-hint"><span class="key">W</span><span class="key">S</span> Drive <span class="hint-separator">·</span><span class="mouse-icon">↔</span> Mouse steer <span class="hint-separator">·</span><span class="key">Q</span> Grab <span class="key">E</span> Release</div>
+      <div class="footer-actions"><button id="reset-button" class="quiet">↻ Reset field</button><button id="pause-button" class="quiet">Pause</button><button id="mode-button" class="primary small">60s timed run <span>↗</span></button></div>
+    </footer>
+    <div id="drive-overlay" class="drive-overlay"><button id="capture-button">Click to drive <span>Mouse steers · Esc releases cursor</span></button></div>
+    <dialog id="welcome-dialog">
+      <div class="dialog-kicker"><span class="live-dot"></span> INDEPENDENT ROBOTICS SIMULATOR</div>
+      <h1>Build your<br><em>next best run.</em></h1>
+      <p class="intro">Pinnacle, one robot, and a field of possibilities.<br>Drive, lift, and stack in third person.</p>
+      <div class="mode-cards"><button id="practice-start" class="mode-card"><span class="mode-number">01 / EXPLORE</span><strong>Free practice <span>↗</span></strong><span>Unlimited time. Live scoring. Room to experiment.</span></button><button id="timed-start" class="mode-card"><span class="mode-number">02 / CHALLENGE</span><strong>60-second run <span>↗</span></strong><span>A fresh field. One minute. Make every pin count.</span></button></div>
+      <button id="match-start" class="mode-card match-card"><span class="mode-number">03 / HEAD TO HEAD</span><strong>2v2 · You + AI vs two AI <span>↗</span></strong><span>Two minutes. Red alliance. Slow AI with varied roles and tendencies.</span></button>
+      <div class="welcome-controls"><span><b>W / S</b> Drive</span><span><b>MOUSE</b> Turn</span><span><b>Q / E</b> Grab / release</span><span><b>A / D</b> Lift / lower</span></div>
+      <p class="fine-print">Your uploaded field layout · Solo scoring, manual v2.0 · Starts with a red/yellow preload.<br>Independent practice tool; simplified mechanics. Not affiliated with RECF or Vsimulator.</p>
+    </dialog>
+    <dialog id="help-dialog" class="compact-dialog">
+      <div class="dialog-kicker">DRIVER SETTINGS</div><h2>Your robot. Your controls.</h2>
+      <p>Click a key, then press its replacement. Settings save automatically in this browser. Escape always pauses and releases the cursor.</p>
+      <div id="binding-list" class="control-table"></div>
+      <p id="binding-status" class="binding-status" role="status" aria-live="polite"></p>
+      <label class="sensitivity">Mouse sensitivity<input id="sensitivity" type="range" min="0.001" max="0.008" step="0.0005" value="0.003"></label>
+      <label class="invert-setting"><span>Invert mouse steering</span><input id="invert-mouse" type="checkbox"></label>
+      <button id="reset-controls" class="quiet reset-controls">Restore default controls</button>
+      <details class="advanced-settings" open><summary>Advanced driving & camera</summary><div id="advanced-sliders"></div></details>
+      <details class="advanced-settings" open><summary>Robot & decoration</summary>
+        <label class="setting-select">Robot<select id="robot-type"><option value="cascade">Cascade lift</option><option value="dr4b">DR4B · double reverse four-bar</option></select></label>
+        <label class="setting-select">Decoration color<select id="decor-color"><option value="lime">Lime</option><option value="purple">Purple</option><option value="orange">Orange</option><option value="white">White</option><option value="teal">Teal</option><option value="pink">Pink</option><option value="graphite">Graphite</option></select></label>
+        <label class="setting-select">Topper<select id="robot-topper"><option value="none">None</option><option value="beacon">Beacon</option><option value="crown">Crown</option><option value="duck">Duck</option></select></label>
+        <p class="tiny">Compact DR4B: 30-inch lift travel. Cascade: 60-inch travel. Decoration does not change alliance license plates, collisions or scoring.</p>
+      </details>
+      <p>Drive close to an object with the claw at its height, then press <b data-shortcut="grab">Q</b>. Raise the object over a goal and press <b data-shortcut="release">E</b> when the target ring turns green. Alternate pins and cups to build a stack. <b data-shortcut="flip">R</b> changes the orientation of the held object or stack.</p>
+      <p>Rollers sit on top of the walls. Back the robot up to one and press <b data-shortcut="roller">F</b> to cycle yellow → red → blue. Front and side approaches cannot turn them.</p>
+      <p>Hold <b data-shortcut="intake">I</b> to run the rear intake. Back a loose pin into the rear funnel with an empty claw. It travels along the rollers, up the internal conveyor and into the front claw. Letting go stops the conveyor mid-feed; hold the key again to continue. The intake also accepts cups and can add one opposite-type object. Lower the claw fully to finish a feed; whole stacks use the claw.</p>
+      <p>Team loaders automatically fill their lower holder and raise only the upper handle when you approach. The load stays low. Face the holder and press <b data-shortcut="grab">Q</b> to grab. The default is a red/yellow pin on top of a cup. Open Team loaders while paused to change the recipe and orientations. Changes apply to the next refill. <b data-shortcut="loader">L</b> selects a loader while driving.</p>
+      <p>Head to head: you drive R1 on red, with one red AI and two blue AI. Each AI starts with a random role and retains its individual tendencies when its role changes once around mid-match. Defenders block opponents and periodically give space. Center specialists score and remove opposing top objects; field scorers use their alliance and neutral goals. Opponent alliance goals are protected, and center/neutral descoring stops in the last 30 seconds. Two minutes of driving; no autonomous period.</p>
+      <details><summary>Scoring & simulator limits</summary><p>Cups score 1. Visible red/blue halves score 5 on matching or neutral goals. Yellow halves score 5 on red/neutral goals with a red roller, or blue goals with a blue roller. All visible halves on the center goal score 10. A goal conceals the lowest half; an opaque cup half conceals its neighboring pin half.</p><p>Goal centers follow the diagram's tile grid. Objects use assisted nesting and simplified collisions rather than full rigid-body physics. Field artwork and robot geometry are independently drawn. This is your custom starting layout with solo scoring, not a certified competition simulation.</p><a href="https://games.recf.org/achieve/2.0" target="_blank" rel="noreferrer">Read the official v2.0 manual ↗</a></details>
+      <button id="help-close" class="primary">Back to the field</button>
+    </dialog>
+    <dialog id="result-dialog" class="compact-dialog"><div class="dialog-kicker">MATCH SUMMARY</div><h2 id="result-title">That's a run.</h2><div class="result-score"><span id="result-score">0</span><small>POINTS</small></div><p id="result-detail"></p>
+      <div class="summary-toolbar"><label>Robot <select id="summary-robot"></select></label><span id="summary-clock"></span><button id="summary-download" class="quiet">Download summary</button></div>
+      <input id="summary-time" type="range" min="0" max="120" step="0.1" aria-label="Summary time">
+      <div class="summary-layout"><div><canvas id="summary-map" width="800" height="800" aria-label="Bird's-eye robot paths and scoring locations"></canvas><p class="tiny">Bright trail: selected robot · dot: position · squares: score changes</p></div><div><div id="summary-metrics"></div><ul id="summary-events"></ul></div></div>
+      <div class="result-actions"><button id="retry-button" class="primary">Run it again ↗</button><button id="result-practice" class="quiet">Free practice</button></div></dialog>
+    <aside class="loader-panel" id="loader-panel">
+      <button id="loader-toggle" class="quiet" aria-expanded="false" aria-controls="loader-content">Team loaders <span>＋</span></button>
+      <p id="loader-summary" class="loader-summary">AUTO · R/Y + CUP</p>
+      <div id="loader-content" hidden>
+        <div class="loader-select"><label>Loader · <span data-shortcut="loader">L</span> to cycle while driving<select id="loader-select"><option value="0">Red • upper</option><option value="1">Red • lower</option><option value="2">Blue • upper</option><option value="3">Blue • lower</option></select></label></div>
+        <div class="loader-select"><label>Load<select id="load-mode"><option value="pair">Pin + cup</option><option value="pin">Pin only</option><option value="cup">Cup only</option></select></label></div>
+        <div class="loader-select" id="pin-options"><label>Pin colors<select id="load-pin"><option value="ry">Red / yellow</option><option value="by">Blue / yellow</option><option value="yy">Yellow / yellow</option></select></label><label>Pin orientation<select id="load-pin-flip"><option value="false">First color facing up</option><option value="true">Second color facing up</option></select></label></div>
+        <div class="loader-select" id="cup-options"><label>Cup orientation<select id="load-cup-clear"><option value="false">Clear half down</option><option value="true">Clear half up</option></select></label></div>
+        <div class="loader-select" id="pair-options"><label>Stack order<select id="load-order"><option value="pin-cup">Cup on top of pin</option><option value="cup-pin">Pin on top of cup</option></select></label></div>
+        <button id="copy-loader" class="copy-loader">Apply to both red loaders</button>
+        <p id="loader-state" class="tiny"></p>
+        <p class="tiny">Auto refills on approach. <span data-shortcut="grab">Q</span> grabs from tray.<br>Changes apply to the next refill.</p>
+        <p id="supply-count" class="tiny"></p>
+      </div>
+    </aside>
+    <div id="error-banner" hidden role="alert"></div>
+  </main>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
